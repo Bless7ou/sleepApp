@@ -42,6 +42,7 @@ export default function HomeScreen() {
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [name, setName] = useState('');
   const [gender, setGender] = useState<'남' | '여'>('남');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // 저장된 프로필 정보 불러오기 (매번 Home 돌아올 때)
   useEffect(() => {
@@ -290,6 +291,13 @@ export default function HomeScreen() {
             <Text>💤 가장 많이 자는 날: {sleepStats().best}</Text>
             <Text>🚪 가장 적게 자는 날: {sleepStats().worst}</Text>
           </View>
+          <View style={{ alignItems: 'center', marginTop: 10 }}>
+      <TouchableOpacity
+        style={styles.resetButton}
+        onPress={() => setShowResetConfirm(true)}>
+        <Text style={styles.resetButtonText}>🔄 수면 기록 초기화</Text>
+      </TouchableOpacity>
+    </View>
             <View style={styles.bottomButtons}>
                 <TouchableOpacity onPress={() => setScreen('SleepLog')}>
                     <ImageBackground
@@ -312,6 +320,37 @@ export default function HomeScreen() {
             </View>
         </>
       )}
+      <Modal visible={showResetConfirm} transparent animationType="fade">
+  <View style={styles.modalOverlay}>
+    <View style={styles.modalContent}>
+      <Text style={styles.modalTitle}>정말 초기화할까요?</Text>
+      <Text style={{ marginBottom: 20 }}>이 작업은 되돌릴 수 없습니다.</Text>
+      <View style={styles.modalButtons}>
+        <TouchableOpacity
+          onPress={async () => {
+            await AsyncStorage.removeItem('@sleepData');
+            setSleepData({});
+            setShowResetConfirm(false);
+          }}>
+          <ImageBackground
+            source={{ uri: 'https://i.postimg.cc/RC8hZDLX/BT-2.png' }}
+            style={styles.modalImageButton}
+            imageStyle={{ resizeMode: 'contain' }}>
+            <Text style={styles.modalImageButtonText}>예</Text>
+          </ImageBackground>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowResetConfirm(false)}>
+          <ImageBackground
+            source={{ uri: 'https://i.postimg.cc/RC8hZDLX/BT-2.png' }}
+            style={styles.modalImageButton}
+            imageStyle={{ resizeMode: 'contain' }}>
+            <Text style={styles.modalImageButtonText}>아니오</Text>
+          </ImageBackground>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+</Modal>
 
     {screen === 'Schedule' && (
         <>
@@ -463,4 +502,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#ffffff',
   },
+  resetButton: {
+    backgroundColor: '#E88B8B',
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+  },
+  resetButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+  }
 });
