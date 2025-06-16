@@ -14,6 +14,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRoute, RouteProp } from '@react-navigation/native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const box2 = { uri: 'https://i.postimg.cc/yg9sCT82/box2.png' };
 const plusIcon = { uri: 'https://i.postimg.cc/hJVcHrj6/plus-Button.png' };
@@ -69,6 +70,8 @@ export default function ScheduleListScreen() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'start' | 'end' | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -79,8 +82,7 @@ export default function ScheduleListScreen() {
 
   const palette = ['#FF4D4D', '#FF914D', '#FFCD4D', '#33CC33', '#4DA6FF', '#3366FF', '#9933FF', '#000000'];
 
-  const formatDate = (date: Date) =>
-    date.toISOString().split('T')[0];
+  const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
   const timeToMinutes = (time: string = '00:00') => {
     const [h, m] = time.split(':').map(Number);
@@ -158,7 +160,7 @@ export default function ScheduleListScreen() {
 
   const changeDate = (days: number) => {
     const newDate = new Date(currentDate);
-    newDate.setDate(newDate.getDate() + days);
+    newDate.setDate(currentDate.getDate() + days);
     setCurrentDate(newDate);
     setStartTime('');
     setEndTime('');
@@ -287,20 +289,52 @@ export default function ScheduleListScreen() {
                     <Image source={endBtn} style={{ width: 120, height: 40, resizeMode: 'contain' }} />
                   </TouchableOpacity>
                 </View>
-                <TextInput
-                  style={[styles.input, { borderColor: 'white', fontSize: 14, color: 'white', fontWeight: 'bold' }]}
-                  value={startTime}
-                  onChangeText={setStartTime}
-                  placeholder="시작 시간"
-                  placeholderTextColor="#ffffff99"
-                />
-                <TextInput
-                  style={[styles.input, { borderColor: 'white', fontSize: 14, color: 'white', fontWeight: 'bold' }]}
-                  value={endTime}
-                  onChangeText={setEndTime}
-                  placeholder="종료 시간"
-                  placeholderTextColor="#ffffff99"
-                />
+                <TouchableOpacity onPress={() => { setPickerMode('start'); setShowPicker(true); }}>
+        <TextInput
+          style={[styles.input, { borderColor: 'white', fontSize: 14, color: 'white', fontWeight: 'bold' }]}
+          value={startTime}
+          editable={false}
+          placeholder="시작 시간"
+          placeholderTextColor="#ffffff99"
+        />
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => { setPickerMode('end'); setShowPicker(true); }}>
+        <TextInput
+          style={[styles.input, { borderColor: 'white', fontSize: 14, color: 'white', fontWeight: 'bold' }]}
+          value={endTime}
+          editable={false}
+          placeholder="종료 시간"
+          placeholderTextColor="#ffffff99"
+        />
+      </TouchableOpacity>
+
+      {/* DateTimePicker 렌더링 */}
+      {showPicker && (
+        <DateTimePicker
+          value={new Date()}
+          mode="time"
+          is24Hour={true}
+          display="spinner"
+          onChange={(event, selectedDate) => {
+            if (event.type === 'dismissed') {
+              setShowPicker(false);
+              return;
+            }
+
+            const date = selectedDate || new Date();
+            const h = date.getHours().toString().padStart(2, '0');
+            const m = date.getMinutes().toString().padStart(2, '0');
+            const formatted = `${h}:${m}`;
+
+            if (pickerMode === 'start') setStartTime(formatted);
+            if (pickerMode === 'end') setEndTime(formatted);
+
+            setShowPicker(false);
+            setPickerMode(null);
+          }}
+        />
+      )}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
                   <TouchableOpacity onPress={handleSaveTime}>
                     <Image source={retimeBtn} style={{ width: 140, height: 50, resizeMode: 'contain' }} />

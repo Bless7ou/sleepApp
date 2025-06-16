@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal, Image, ImageBackground,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Modal,
+  Image,
+  ImageBackground,
+  TextInput,
+  Button,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -8,45 +16,63 @@ import { Calendar } from 'react-native-calendars';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types';
+import { useMemo } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 const days = ['월', '화', '수', '목', '금', '토', '일'];
 
 type Task = {
   title: string;
   color: string;
-  date: string; // YYYY-MM-DD 형식
+  date: string;
   start?: string;
 };
 
 export default function HomeScreen() {
-    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-    const [screen, setScreen] = useState<'Home' | 'SleepLog' | 'Schedule' | 'Profile'>('Home');
-    const [sleepData, setSleepData] = useState<Record<string, { start: string; end: string }>>({});
-    const [tasks, setTasks] = useState<Task[]>([]);
-    const [selectedDay, setSelectedDay] = useState<string | null>(null);
-    const [modalVisible, setModalVisible] = useState(false);
-    const [startTime, setStartTime] = useState(new Date(0, 0, 0, 23, 0));
-    const [endTime, setEndTime] = useState(new Date(0, 0, 0, 7, 0));
-    const [showStartPicker, setShowStartPicker] = useState(false);
-    const [showEndPicker, setShowEndPicker] = useState(false);
-    const [name, setName] = useState('');
-    const [gender, setGender] = useState<'남' | '여'>('남');
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [screen, setScreen] = useState<'Home' | 'SleepLog' | 'Schedule' | 'Profile'>('Home');
+  const [sleepData, setSleepData] = useState<Record<string, { start: string; end: string }>>({});
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [startTime, setStartTime] = useState(new Date(0, 0, 0, 23, 0));
+  const [endTime, setEndTime] = useState(new Date(0, 0, 0, 7, 0));
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [name, setName] = useState('');
+  const [gender, setGender] = useState<'남' | '여'>('남');
 
-  useEffect(
-    React.useCallback(() => {
-        (async () => {
-          const storedName = await AsyncStorage.getItem('@name');
-          const storedGender = await AsyncStorage.getItem('@gender');
-          const jsonValue = await AsyncStorage.getItem('@sleepData');
-          const taskValue = await AsyncStorage.getItem('@tasks');
-          if (storedName) setName(storedName);
-          if (storedGender === '남' || storedGender === '여') setGender(storedGender);
-          if (jsonValue != null) setSleepData(JSON.parse(jsonValue));
-          if (taskValue != null) setTasks(JSON.parse(taskValue));
-        })();
-      }, [])
-);
+  // 저장된 프로필 정보 불러오기 (매번 Home 돌아올 때)
+  useEffect(() => {
+    if (screen === 'Home') {
+      (async () => {
+        const storedName = await AsyncStorage.getItem('@name');
+        const storedGender = await AsyncStorage.getItem('@gender');
+        if (storedName) setName(storedName);
+        if (storedGender === '남' || storedGender === '여') setGender(storedGender);
+      })();
+    }
+  }, [screen]);
 
+  // 나머지 sleepData, tasks 로딩
+  useEffect(() => {
+    (async () => {
+      const jsonValue = await AsyncStorage.getItem('@sleepData');
+      if (jsonValue != null) setSleepData(JSON.parse(jsonValue));
+    })();
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        const taskValue = await AsyncStorage.getItem('@tasks');
+        if (taskValue != null) {
+          setTasks(JSON.parse(taskValue));
+        }
+      })();
+    }, [])
+  );
 
   const saveData = async (day: string, start: Date, end: Date) => {
     const newData = {
@@ -55,6 +81,52 @@ export default function HomeScreen() {
     };
     setSleepData(newData);
     await AsyncStorage.setItem('@sleepData', JSON.stringify(newData));
+  };
+  
+  const getTodaySleepStatus = () => {
+    const todayDate = new Date();
+    const todayKST = new Date(todayDate.getTime() + 9 * 60 * 60 * 1000);
+    const weekday = todayKST.toLocaleDateString('ko-KR', { weekday: 'short' })[0]; // ex: '월'
+  
+    const sleep = sleepData[weekday];
+    if (!sleep) return { message: '오늘도 좋은 하루 보내세요', image: 'https://i.postimg.cc/tgVmMVZN/image.png' };
+  
+    const start = new Date(sleep.start);
+    const end = new Date(sleep.end);
+    let duration = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    if (duration < 0) duration += 24;
+  
+    if (duration >= 1.5 && duration <= 4.5) {
+      return { message: '좀 더 자야 할 것 같아', image: 'https://i.postimg.cc/sxJLJdQF/image.png' };
+    } else if (duration >= 6 && duration <= 9) {
+      return { message: '충분히 잘 수 있어!', image: 'https://i.postimg.cc/tgVmMVZN/image.png' };
+    } else if (duration >= 10.5) {
+      return { message: '너무 많이 자고 있어..', image: 'https://i.postimg.cc/sxz8SD29/image.png' };
+    }
+  
+    return { message: '오늘도 좋은 하루 보내세요', image: 'https://i.postimg.cc/tgVmMVZN/image.png' };
+  };
+  
+  const onChangeStart = (_: any, selectedDate?: Date) => {
+    setShowStartPicker(false);
+    if (selectedDate) setStartTime(selectedDate);
+  };
+
+  const onChangeEnd = (_: any, selectedDate?: Date) => {
+    setShowEndPicker(false);
+    if (selectedDate) setEndTime(selectedDate);
+  };
+
+  const openModal = (day: string) => {
+    setSelectedDay(day);
+    if (sleepData[day]) {
+      setStartTime(new Date(sleepData[day].start));
+      setEndTime(new Date(sleepData[day].end));
+    } else {
+      setStartTime(new Date(0, 0, 0, 23, 0));
+      setEndTime(new Date(0, 0, 0, 7, 0));
+    }
+    setModalVisible(true);
   };
 
   const calculateSleepHours = (start: Date, end: Date) => {
@@ -78,54 +150,6 @@ export default function HomeScreen() {
     return { average: avg.toFixed(1), best, worst };
   };
 
-  const onChangeStart = (_: any, selectedDate?: Date) => {
-    setShowStartPicker(false);
-    if (selectedDate) setStartTime(selectedDate);
-  };
-
-  const onChangeEnd = (_: any, selectedDate?: Date) => {
-    setShowEndPicker(false);
-    if (selectedDate) setEndTime(selectedDate);
-  };
-
-  const openModal = (day: string) => {
-    setSelectedDay(day);
-    if (sleepData[day]) {
-      setStartTime(new Date(sleepData[day].start));
-      setEndTime(new Date(sleepData[day].end));
-    } else {
-      setStartTime(new Date(0, 0, 0, 23, 0));
-      setEndTime(new Date(0, 0, 0, 7, 0));
-    }
-    setModalVisible(true);
-  };
-
-  const generateMarkedDates = (): Record<string, { dots: { color: string; selectedDotColor: string }[] }> => {
-    const grouped: Record<string, Task[]> = {};
-    tasks.forEach(task => {
-      if (!grouped[task.date]) grouped[task.date] = [];
-      grouped[task.date].push(task);
-    });
-
-    const marked: Record<string, { dots: { color: string; selectedDotColor: string }[] }> = {};
-    Object.entries(grouped).forEach(([date, taskList]) => {
-      const sorted = taskList.sort((a, b) => {
-        const [ha, ma] = (a.start ?? '00:00').split(':').map(Number);
-        const [hb, mb] = (b.start ?? '00:00').split(':').map(Number);
-        return ha * 60 + ma - (hb * 60 + mb);
-      });
-
-      const dots = sorted.slice(0, 3).map(t => ({
-        color: t.color,
-        selectedDotColor: t.color,
-      }));
-
-      marked[date] = { dots };
-    });
-
-    return marked;
-  };
-
   const getTodayKST = () => {
     const now = new Date();
     const kstOffset = 9 * 60 * 60 * 1000;
@@ -133,23 +157,48 @@ export default function HomeScreen() {
     return kstDate.toISOString().split('T')[0];
   };
 
+  const markedDates = useMemo(() => {
+    const grouped: Record<string, Task[]> = {};
+  
+    tasks.forEach(task => {
+      if (!grouped[task.date]) grouped[task.date] = [];
+      grouped[task.date].push(task);
+    });
+  
+    const marked: Record<string, { dots: { color: string; selectedDotColor: string }[] }> = {};
+    Object.entries(grouped).forEach(([date, taskList]) => {
+      const sorted = taskList.sort((a, b) => {
+        const [ha, ma] = (a.start ?? '00:00').split(':').map(Number);
+        const [hb, mb] = (b.start ?? '00:00').split(':').map(Number);
+        return ha * 60 + ma - (hb * 60 + mb);
+      });
+      const dots = sorted.slice(0, 3).map(t => ({
+        color: t.color,
+        selectedDotColor: t.color,
+      }));
+      marked[date] = { dots };
+    });
+  
+    return marked;
+  }, [tasks]);
+  
+  const sleepStatus = getTodaySleepStatus();
 
   return (
     <View style={styles.container}>
       {screen === 'Home' && (
         <>
-          <TouchableOpacity style={styles.charButton}>
-            <Text style={styles.charButtonText}>Character</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.profileButton} onPress={() => setScreen('Profile')}>
-            <Image source={{ uri: gender === '여'
-              ? 'https://i.postimg.cc/kXv5vgdh/profile2.jpg'
-              : 'https://i.postimg.cc/h4xvh0Zn/pripile.jpg' }}
-              style={styles.profileIcon} />
+            <Image
+              source={{ uri: gender === '여' ? 'https://i.postimg.cc/kXv5vgdh/profile2.jpg' : 'https://i.postimg.cc/h4xvh0Zn/pripile.jpg' }}
+              style={styles.profileIcon}
+            />
           </TouchableOpacity>
           <Image source={{ uri: 'https://i.postimg.cc/P5dPg84j/message.png' }} style={styles.speechBubbleImage} />
-          <Text style={styles.speechOverlayText}>안녕하세요! 이제 자러 가보일까요?</Text>
-          <Image source={{ uri: 'https://i.postimg.cc/tgVmMVZN/image.png' }} style={styles.characterImage} />
+
+          <Text style={styles.speechOverlayText}>{sleepStatus.message}</Text>
+          <Image source={{ uri: sleepStatus.image }} style={styles.characterImage} />
+
           <Text style={styles.nameText}>{name || '이름'}</Text>
           <View style={styles.bottomButtons}>
             <TouchableOpacity onPress={() => setScreen('SleepLog')}>
@@ -165,7 +214,41 @@ export default function HomeScreen() {
           </View>
         </>
       )}
-
+      {screen === 'Profile' && (
+  <View style={{ flex: 1, backgroundColor: '#EAF4FB', alignItems: 'center', justifyContent: 'center' }}>
+    <Image
+      source={{ uri: gender === '여'
+        ? 'https://i.postimg.cc/kXv5vgdh/profile2.jpg'
+        : 'https://i.postimg.cc/h4xvh0Zn/pripile.jpg' }}
+      style={{ width: 150, height: 150, borderRadius: 75, marginBottom: 20 }}
+    />
+    <TextInput
+      style={{ width: 200, height: 40, borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 10, backgroundColor: 'white', marginBottom: 20 }}
+      placeholder="이름 입력"
+      value={name}
+      onChangeText={setName}
+    />
+    <View style={{ flexDirection: 'row', marginBottom: 20 }}>
+      <TouchableOpacity
+        style={[{ padding: 10, borderWidth: 1, borderColor: '#4977B9', borderRadius: 10, marginHorizontal: 10 }, gender === '남' && { backgroundColor: '#A4D8F0' }]}
+        onPress={() => setGender('남')}
+      >
+        <Text style={{ fontSize: 16, color: '#4977B9', fontWeight: 'bold' }}>남자</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[{ padding: 10, borderWidth: 1, borderColor: '#4977B9', borderRadius: 10, marginHorizontal: 10 }, gender === '여' && { backgroundColor: '#A4D8F0' }]}
+        onPress={() => setGender('여')}
+      >
+        <Text style={{ fontSize: 16, color: '#4977B9', fontWeight: 'bold' }}>여자</Text>
+      </TouchableOpacity>
+    </View>
+    <Button title="저장" onPress={async () => {
+      await AsyncStorage.setItem('@name', name);
+      await AsyncStorage.setItem('@gender', gender);
+      setScreen('Home');
+    }} />
+  </View>
+)}
       {screen === 'SleepLog' && (
         <>
             <TouchableOpacity style={styles.homeButton} onPress={() => setScreen('Home')}>
@@ -239,7 +322,7 @@ export default function HomeScreen() {
           <Calendar
             current={getTodayKST()}
             markingType={'multi-dot'}
-            markedDates={generateMarkedDates()}
+            markedDates={markedDates}
             monthFormat={'yyyy MM'}
             hideExtraDays
             theme={{
